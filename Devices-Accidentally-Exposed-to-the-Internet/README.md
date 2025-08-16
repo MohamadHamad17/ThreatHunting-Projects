@@ -1,5 +1,8 @@
 # Devices Accidentally Exposed to the Internet: windows-target-1
 
+<img width="825" height="489" alt="Screenshot 2025-08-16 at 4 31 24 PM" src="https://github.com/user-attachments/assets/88ab5751-b567-45ef-bd56-97f58afc8372" />
+
+
 This document summarizes the threat hunting investigation conducted on the VM **windows-target-1**, which was mistakenly exposed to the public internet. The investigation focused on identifying brute force activity, validating successful logins, and confirming whether any unauthorized access occurred.
 
 ---
@@ -35,7 +38,10 @@ If so, what else happened on that machine around the same time? Were any bad act
 
 ### Findings
 
-windows-target-1 has been internet facing for several days:
+The device windows-target-1 was identified as being internet-facing for an extended period of time. By reviewing the DeviceInfo logs, we confirmed that the VM had its network interface exposed directly to the public internet. This status was verified by filtering for instances where the IsInternetFacing property was set to 1. The results showed multiple entries confirming exposure, ordered by timestamp to identify the most recent occurrence.
+
+The last recorded time that windows-target-1 was internet-facing was on  **2025-08-16T20:07:13.7923551Z**  . This indicates that the VM remained publicly accessible up until that point, leaving it susceptible to external scanning, brute force attempts, or other malicious activity originating from the open internet.
+
 ```kql
 DeviceInfo  
 | where DeviceName == "windows-target-1"  
@@ -43,11 +49,12 @@ DeviceInfo
 | order by Timestamp desc  
 | project Timestamp, DeviceName, PublicIP, OSPlatform, IsInternetFacing  
 ```
-Last internet facing time: **2025-07-11T00:19:47.7079524Z**  
+<img width="1026" height="248" alt="Screenshot 2025-08-16 at 4 35 19 PM" src="https://github.com/user-attachments/assets/78e1906e-c13e-4d0a-9e8c-84bd584058fa" />
 
 ---
 
-Several bad actors have been attempting to log into the target machine:
+Analysis of the DeviceLogonEvents showed that several external IP addresses attempted to log into windows-target-1. By focusing on failed logon types such as Network, Interactive, and RemoteInteractive, we identified repeated failed attempts tied to remote sources. The results indicate that multiple bad actors tried to authenticate against the device while it was exposed to the internet.
+
 ```kql
 DeviceLogonEvents  
 | where LogonType has_any("Network", "Interactive", "RemoteInteractive", "Unlock")  
@@ -56,23 +63,25 @@ DeviceLogonEvents
 | summarize Attempts = count() by ActionType, RemoteIP, DeviceName  
 | order by Attempts  
 ```
-<img width="639" height="330" alt="Screenshot 2025-08-16 at 3 39 08 PM" src="https://github.com/user-attachments/assets/9e7b8402-41fc-47bf-a564-92a45b028fe5" />
-
+<img width="1038" height="341" alt="Screenshot 2025-08-16 at 4 34 22 PM" src="https://github.com/user-attachments/assets/9cbd1f46-dae5-4aec-ac95-b019d4526c4a" />
 
 ---
 
-The top 5 most failed logon attempts have not been able to successfully login:
+The analysis of the top five IP addresses responsible for the highest number of failed logon attempts showed that none of them were able to successfully authenticate. Despite repeated efforts, every attempt from these sources resulted in failure, confirming that brute force activity did not lead to unauthorized access.
+
 ```kql
 let RemoteIPsInQuestion = dynamic(["185.224.3.219","10.0.0.8","111.67.194.32","185.224.3.219","83.222.191.62","45.41.204.12","192.109.240.116"]);  
 DeviceLogonEvents  
 | where LogonType has_any("Network", "Interactive", "RemoteInteractive", "Unlock")  
 | where ActionType == "LogonSuccess"  
-| where RemoteIP has_any(RemoteIPsInQuestion)  
+| where RemoteIP has_any(RemoteIPsInQuestion)
 ```
+<img width="1032" height="391" alt="Screenshot 2025-08-16 at 4 37 44 PM" src="https://github.com/user-attachments/assets/3eb53a91-efee-4793-a6b9-011145774631" />
 
 ---
 
-The only successful remote/network logons in the last 30 days was for the ‘labuser’ account (57 total):
+Within the last 30 days, the only successful remote or network logons recorded on windows-target-1 were tied to the labuser account. In total, there were 7 successful logons, all of which were legitimate. No other accounts showed signs of successful authentication, further confirming that attackers were not able to gain unauthorized access.
+
 ```kql
 DeviceLogonEvents  
 | where DeviceName == "windows-target-1"  
@@ -81,9 +90,12 @@ DeviceLogonEvents
 | where AccountName == "labuser"  
 | summarize count()  
 ```
+<img width="1032" height="391" alt="Screenshot 2025-08-16 at 4 44 41 PM" src="https://github.com/user-attachments/assets/215948ad-6b56-4524-8ba7-920d75d03cb8" />
+
 ---
 
 There were zero (0) failed logons for the ‘labuser’ account, indicating that a brute force attempt for this account didn’t take place, and a 1-time password guess is unlikely.
+
 ```kql
 DeviceLogonEvents  
 | where DeviceName == "windows-target-1"  
@@ -92,6 +104,8 @@ DeviceLogonEvents
 | where AccountName == "labuser"  
 | summarize count()  
 ```
+<img width="1032" height="391" alt="Screenshot 2025-08-16 at 4 47 29 PM" src="https://github.com/user-attachments/assets/f0e982fc-77ef-4658-afec-1218151a2ed1" />
+
 ---
 
 We checked all of the successful login IP addresses for the ‘labuser’ account to see if any of them were unusual or from an unexpected location. All were normal.
@@ -104,9 +118,10 @@ DeviceLogonEvents
 | where AccountName == "labuser"  
 | summarize LoginCount = count() by DeviceName, ActionType, AccountName, RemoteIP
 ```
-<img width="554" height="238" alt="Screenshot 2025-08-16 at 3 40 15 PM" src="https://github.com/user-attachments/assets/774e68b1-3165-434c-b7c0-0eb607d914f4" />
+<img width="1032" height="391" alt="Screenshot 2025-08-16 at 4 48 00 PM" src="https://github.com/user-attachments/assets/1c6d5516-a2a4-4a0d-af2c-8c5eff5fca8f" />
 
 ---
+
 
 Though the device has been exposed to the internet and clear brute force attempts have taken place, there is no evidence of any brute force success or unauthorized access from legitimate account “labuser”.
 
@@ -139,7 +154,7 @@ Goal: Mitigate any confirmed threats.
 ## 6. Documentation
 
 **Summary of Findings:**  
-- Device was internet-facing until July 11, 2025.  
+- Device was internet-facing until 2025-08-16T20:07:13.7923551Z. 
 - Multiple brute force attempts were observed, none successful.  
 - `labuser` was the only account to log in, with all connections from normal IPs.  
 - No unauthorized access was detected.  
