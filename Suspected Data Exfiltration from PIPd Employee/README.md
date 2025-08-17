@@ -2,6 +2,8 @@
 
 This document summarizes the threat hunting investigation conducted on the VM **VMName**, where suspicious archiving and exfiltration activity was identified. The investigation focused on detecting file staging, process execution, and outbound connections linked to potential data theft.  
 
+<img width="777" height="437" alt="Screenshot 2025-08-16 at 9 40 25 PM" src="https://github.com/user-attachments/assets/c2d9a8c2-764b-4c40-b9e7-cece1568219f" />
+
 ---
 
 ## 2. Data Collection  
